@@ -7,7 +7,8 @@ import path from 'path';
 import errorHandler from './middlewares/error';
 import productsRouter from './routes/products';
 import ordersRouter from './routes/orders';
-import { requestLogger, errorLogger } from './middlewares/logger'
+import { requestLogger, errorLogger } from './middlewares/logger';
+import authRouter from './routes/auth';
 
 const { PORT = 3000, DB_ADDRESS = 'mongodb://127.0.0.1:27017/weblarek' } = process.env;
 
@@ -22,6 +23,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(requestLogger);
 app.use('/product', productsRouter);
 app.use('/order', ordersRouter);
+app.use('/auth', authRouter);
 app.use(errorLogger);
 
 app.use(errors());
