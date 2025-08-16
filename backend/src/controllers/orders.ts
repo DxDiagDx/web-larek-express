@@ -3,6 +3,7 @@ import { faker } from '@faker-js/faker';
 import { Error as MongooseError } from 'mongoose';
 import Product from '../models/product';
 import BadRequestError from '../errors/bad-request-error';
+import HttpCodes from '../errors/codes';
 
 export const createOrder = async (req: Request, res: Response, next: NextFunction) => {
   const { total, items } = req.body;
@@ -29,7 +30,7 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
       return next(error);
     }
 
-    return res.status(200).send({ orderId, total: totalSum });
+    return res.status(HttpCodes.OK).send({ orderId, total: totalSum });
   } catch (error) {
     if (error instanceof MongooseError.ValidationError) {
       return next(new BadRequestError('Нвозможно создать заказ'));

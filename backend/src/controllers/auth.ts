@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import User from '../models/user';
 import { AuthRequest } from '../middlewares/auth';
+import HttpCodes from '../errors/codes';
 
 const { JWT_SECRET } = process.env;
 
@@ -22,7 +23,7 @@ export const getCurrentUser = async (req: AuthRequest, res: Response, next: Next
   try {
     const user = await User.findById(req.user?._id);
     if (!user) {
-      return res.status(404).json({ message: 'Пользователь не найден' });
+      return res.status(HttpCodes.NOT_FOUND).json({ message: 'Пользователь не найден' });
     }
 
     res.json({
@@ -40,10 +41,9 @@ export const getCurrentUser = async (req: AuthRequest, res: Response, next: Next
 export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, password } = req.body;
-    console.log('Login request body:', req.body);
 
     if (!email || !password) {
-      return res.status(400).json({
+      return res.status(HttpCodes.BAD_REQUEST).json({
         success: false,
         message: 'Неверная почта или пароль',
       });
@@ -65,7 +65,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       path: '/',
     });
 
-    res.status(200).json({
+    res.status(HttpCodes.OK).json({
       success: true,
       user: {
         email: user.email,
@@ -75,7 +75,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'Неправильные почта или пароль') {
-      return res.status(401).json({
+      return res.status(HttpCodes.UNAUTHORIZED).json({
         success: false,
         message: 'Неправильные почта или пароль',
       });
@@ -90,7 +90,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
 
     const emailUser = await User.findOne({ email });
     if (emailUser) {
-      return res.status(409).json({ message: 'Такой email уже зарегистрирован' });
+      return res.status(HttpCodes.CONFLICT).json({ message: 'Такой email уже зарегистрирован' });
     }
 
     const hashPassword = await bcrypt.hash(password, 10);
@@ -117,7 +117,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       path: '/',
     });
 
-    res.status(201).json({
+    res.status(HttpCodes.CREATED).json({
       user: {
         email: user.email,
         name: user.name,
@@ -134,13 +134,13 @@ export const logout = async (req: Request, res: Response, next: NextFunction) =>
   try {
     const { refreshToken } = req.cookies;
     if (!refreshToken) {
-      return res.status(400).json({ message: 'Токен не найден' });
+      return res.status(HttpCodes.BAD_REQUEST).json({ message: 'Токен не найден' });
     }
 
     const payload = jwt.verify(refreshToken, JWT_SECRET!) as { _id: string };
     const user = await User.findById(payload._id);
     if (!user) {
-      return res.status(404).json({ message: 'Пользователь не найден' });
+      return res.status(HttpCodes.NOT_FOUND).json({ message: 'Пользователь не найден' });
     }
     await User.findByIdAndUpdate(user._id, {
       $pull: { tokens: { token: refreshToken } },
@@ -158,7 +158,7 @@ export const refreshAccessToken = async (req: Request, res: Response, next: Next
   try {
     const { refreshToken } = req.cookies;
     if (!refreshToken) {
-      return res.status(401).json({ message: 'Токен не найден' });
+      return res.status(HttpCodes.UNAUTHORIZED).json({ message: 'Токен не найден' });
     }
     const payload = jwt.verify(refreshToken, JWT_SECRET!) as { _id: string };
     const user = await User.findOne({
@@ -166,7 +166,7 @@ export const refreshAccessToken = async (req: Request, res: Response, next: Next
       'tokens.token': refreshToken,
     });
     if (!user) {
-      return res.status(401).json({ message: 'Токен недействителен' });
+      return res.status(HttpCodes.UNAUTHORIZED).json({ message: 'Токен недействителен' });
     }
 
     const newAccessToken = generateAccessToken(user._id.toString());

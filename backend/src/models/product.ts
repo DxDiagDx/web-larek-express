@@ -1,16 +1,26 @@
-import mongoose from 'mongoose';
+import mongoose, { Document } from 'mongoose';
+import fs from 'fs/promises';
+import path from 'path';
 
 export interface IImage {
   fileName: string;
   originalName: string;
 }
 
-export interface IProduct {
+export interface IProduct extends Document {
   title: string;
   image: IImage;
   category: string;
   description: string;
   price: number | null;
+}
+
+export interface IProductRequestBody {
+  title?: string;
+  image?: IImage;
+  category?: string;
+  description?: string;
+  price?: number;
 }
 
 const imageSchema = new mongoose.Schema<IImage>({
@@ -44,6 +54,19 @@ const productSchema = new mongoose.Schema<IProduct>({
     type: Number,
     default: null,
   },
+}, { versionKey: false });
+
+// eslint-disable-next-line func-names
+productSchema.post('deleteOne', async function (this: IProduct) {
+  if (!this.image) return;
+
+  const filePath = path.join(process.cwd(), 'public', this.image.fileName);
+
+  try {
+    await fs.rm(filePath, { force: true });
+  } catch (err) {
+    console.error(`Ошибка удаления файла ${filePath}:`, err);
+  }
 });
 
 export default mongoose.model<IProduct>('product', productSchema);

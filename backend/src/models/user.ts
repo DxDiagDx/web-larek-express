@@ -40,7 +40,6 @@ const userSchema = new mongoose.Schema<IUser>({
     token: {
       type: String,
       required: true,
-      // select: false,
     },
   }],
 });

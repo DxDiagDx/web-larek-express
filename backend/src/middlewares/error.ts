@@ -6,6 +6,7 @@ import {
 } from 'express';
 import { CelebrateError, isCelebrateError } from 'celebrate';
 import BadRequestError from '../errors/bad-request-error';
+import HttpCodes from '../errors/codes';
 
 function formatCelebrateError(error: CelebrateError) {
   const details = Array.from(error?.details?.values());
@@ -16,14 +17,16 @@ const errorHandler: ErrorRequestHandler = (
   err,
   _req: Request,
   res: Response,
-  _next: NextFunction,
+  next: NextFunction,
 ) => {
   if (isCelebrateError(err)) {
     const message = formatCelebrateError(err);
     const error = new BadRequestError(message);
     return res.status(error.statusCode).send({ message: error.message });
   }
-  return res.status(err.statusCode || 500).send({ message: err.message || 'Internal Server Error' });
+  res.status(err.statusCode || HttpCodes.INTERNAL_SERVER_ERROR)
+    .send({ message: err.message || 'На сервере произошла ошибка' });
+  next();
 };
 
 export default errorHandler;

@@ -1,9 +1,11 @@
+import HttpCodes from './codes';
+
 class BadRequestError extends Error {
   public statusCode: number;
 
   constructor(message: string) {
     super(message);
-    this.statusCode = 400;
+    this.statusCode = HttpCodes.BAD_REQUEST;
   }
 }
 

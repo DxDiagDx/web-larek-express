@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import HttpCodes from '../errors/codes';
 
 const { JWT_SECRET } = process.env;
 
@@ -9,7 +10,7 @@ export interface AuthRequest extends Request {
 
 const handleAuthError = (res: Response) => {
   res
-    .status(401)
+    .status(HttpCodes.UNAUTHORIZED)
     .send({ message: 'Необходима авторизация' });
 };
 
@@ -28,17 +29,9 @@ export default (req: AuthRequest, res: Response, next: NextFunction) => {
 
   let payload;
 
-  // try {
-  //   payload = jwt.verify(token, JWT_SECRET!) as { _id: string };
-  // } catch (err) {
-  //   return handleAuthError(res);
-  // }
-
   try {
     payload = jwt.verify(token, JWT_SECRET!) as { _id: string };
-    console.log('Decoded payload:', payload); // Добавьте эту строку
   } catch (err) {
-    console.error('JWT verify error:', err); // Логируем ошибку
     return handleAuthError(res);
   }
 
