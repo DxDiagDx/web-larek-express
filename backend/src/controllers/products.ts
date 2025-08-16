@@ -1,0 +1,154 @@
+import { Request, Response, NextFunction } from 'express';
+import { Error as MongooseError } from 'mongoose';
+import fs from 'fs/promises';
+import { existsSync } from 'fs';
+import path from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import Product, { IProductRequestBody } from '../models/product';
+import ConflictError from '../errors/conflict-error';
+import BadRequestError from '../errors/bad-request-error';
+import NotFoundError from '../errors/not-found-error';
+import HttpCodes from '../errors/codes';
+import { logger } from '../middlewares/logger';
+import InternalServerError from '../errors/internal-server-error';
+
+const moveFile = async (tempPath: string, originalName: string): Promise<string> => {
+  const ext = path.extname(originalName);
+  const filename = `${uuidv4()}${ext}`;
+  const newPath = path.join(process.cwd(), 'public', 'images', filename);
+
+  await fs.rename(tempPath, newPath);
+  return `/images/${filename}`;
+};
+
+export const getProducts = async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const products = await Product.find({});
+    res.send({
+      items: products,
+      total: products.length,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const {
+      title, image, category, description, price,
+    } = req.body;
+
+    let imagePath: string | undefined;
+
+    // Обработка изображения
+    if (image?.fileName) {
+      const tempPath = path.join(process.cwd(), 'public', image.fileName);
+      if (existsSync(tempPath)) {
+        imagePath = await moveFile(tempPath, image.originalName);
+      }
+    }
+
+    const product = await Product.create({
+      title,
+      image: imagePath, // Используем обработанный путь к изображению
+      category,
+      description,
+      price,
+    });
+
+    res.status(HttpCodes.CREATED).json({ product });
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('E11000')) {
+      next(new ConflictError('Товар с таким названием уже существует'));
+      return;
+    }
+    if (err instanceof MongooseError.ValidationError) {
+      next(new BadRequestError('Ошибка валидации данных при создании товара'));
+      return;
+    }
+    next(err);
+  }
+};
+
+export const updateProduct = async (
+  req: Request<{ productId: string }, {}, IProductRequestBody>,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const { productId } = req.params;
+    const {
+      title,
+      description,
+      category,
+      price,
+      image,
+    } = req.body;
+
+    const product = await Product.findById(productId)
+      .orFail(new NotFoundError('Товар не найден'));
+
+    // Обработка обновления изображения
+    if (image?.fileName) {
+      const tempPath = path.join(process.cwd(), 'public', image.fileName);
+
+      if (existsSync(tempPath)) {
+        // Удаление старого изображения если оно существует
+        if (product.image) {
+          const oldImagePath = path.join(process.cwd(), 'public', product.image.fileName);
+          try {
+            if (await existsSync(oldImagePath)) {
+              await fs.unlink(oldImagePath);
+            }
+          } catch (err) {
+            logger.info('Ошибка при удалении старого изображения:', err);
+          }
+        }
+
+        // Перемещение нового изображения
+        product.image.originalName = await moveFile(tempPath, image.originalName);
+      }
+    }
+
+    // Обновление полей продукта
+    if (title !== undefined) product.title = title;
+    if (description !== undefined) product.description = description;
+    if (category !== undefined) product.category = category;
+    if (price !== undefined) product.price = price;
+
+    const updatedProduct = await product.save();
+    res.status(HttpCodes.OK).json(updatedProduct);
+  } catch (err) {
+    if (err instanceof MongooseError.ValidationError) {
+      next(new BadRequestError(err.message));
+    } else if (err instanceof Error && err.message.includes('E11000')) {
+      next(new ConflictError('Товар с таким названием уже существует'));
+    } else {
+      next(new InternalServerError('Внутренняя ошибка сервера'));
+    }
+  }
+};
+
+export const deleteProduct = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const { productId } = req.params;
+    const product = await Product.findByIdAndDelete(productId)
+      .orFail(new NotFoundError('Товар не найден'));
+
+    res.status(HttpCodes.OK).json({
+      message: 'Товар успешно удален',
+      deletedProduct: product,
+    });
+  } catch (error) {
+    if (error instanceof MongooseError.CastError) {
+      next(new BadRequestError('Некорректный ID товара'));
+    } else {
+      next(new InternalServerError('Внутренняя ошибка сервера'));
+    }
+  }
+};
