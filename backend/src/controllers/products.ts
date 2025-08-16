@@ -8,6 +8,7 @@ import Product, { IProductRequestBody } from '../models/product';
 import DuplicateTitleError from '../errors/duplicate-title-error';
 import BadRequestError from '../errors/bad-request-error';
 import HttpCodes from '../errors/codes';
+import { logger } from '../middlewares/logger';
 
 const moveFile = async (tempPath: string, originalName: string): Promise<string> => {
   const ext = path.extname(originalName);
@@ -53,12 +54,14 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
     res.status(HttpCodes.CREATED).json({ product });
   } catch (err) {
     if (err instanceof Error && err.message.includes('E11000')) {
-      return next(new DuplicateTitleError('Товар с таким названием уже существует'));
+      next(new DuplicateTitleError('Товар с таким названием уже существует'));
+      return;
     }
     if (err instanceof MongooseError.ValidationError) {
-      return next(new BadRequestError('Ошибка валидации данных при создании товара'));
+      next(new BadRequestError('Ошибка валидации данных при создании товара'));
+      return;
     }
-    return next(err);
+    next(err);
   }
 };
 
@@ -95,7 +98,7 @@ export const updateProduct = async (
               await fs.unlink(oldImagePath);
             }
           } catch (err) {
-            console.error('Ошибка при удалении старого изображения:', err);
+            logger.info('Ошибка при удалении старого изображения:', err);
           }
         }
 

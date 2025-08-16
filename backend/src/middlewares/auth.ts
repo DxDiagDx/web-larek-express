@@ -24,8 +24,6 @@ export default (req: AuthRequest, res: Response, next: NextFunction) => {
   }
 
   const token = extractBearerToken(authorization);
-  console.log('Current JWT_SECRET:', process.env.JWT_SECRET);
-  console.log('Token:', token);
 
   let payload;
 
@@ -37,5 +35,5 @@ export default (req: AuthRequest, res: Response, next: NextFunction) => {
 
   req.user = { _id: payload._id };
 
-  next();
+  return next();
 };

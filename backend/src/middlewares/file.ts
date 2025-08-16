@@ -10,6 +10,7 @@ import path from 'path';
 import { mkdir, access } from 'fs/promises';
 import { constants } from 'fs';
 import type { Request } from 'express';
+import { logger } from './logger';
 
 // Config
 const tempDir = path.join(process.cwd(), 'temp');
@@ -33,7 +34,7 @@ async function ensureTempDirExists() {
     try {
       await mkdir(tempDir, { recursive: true });
     } catch (err) {
-      console.error('Ошибка при создании временной директории:', err);
+      logger.info('Ошибка при создании временной директории:', err);
       throw new Error('Ошибка конфигурации сервера');
     }
   }

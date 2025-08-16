@@ -1,6 +1,7 @@
 import mongoose, { Document } from 'mongoose';
 import fs from 'fs/promises';
 import path from 'path';
+import { logger } from '../middlewares/logger';
 
 export interface IImage {
   fileName: string;
@@ -65,7 +66,7 @@ productSchema.post('deleteOne', async function (this: IProduct) {
   try {
     await fs.rm(filePath, { force: true });
   } catch (err) {
-    console.error(`Ошибка удаления файла ${filePath}:`, err);
+    logger.info(`Ошибка удаления файла ${filePath}:`, err);
   }
 });
 

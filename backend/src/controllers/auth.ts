@@ -7,23 +7,24 @@ import HttpCodes from '../errors/codes';
 
 const { JWT_SECRET } = process.env;
 
-const generateAccessToken = (userId: string) => {
-  return jwt.sign({ _id: userId }, JWT_SECRET!, {
+const generateAccessToken = (userId: string) => (
+  jwt.sign({ _id: userId }, JWT_SECRET!, {
     expiresIn: '10m',
-  });
-};
+  })
+);
 
-const generateRefreshToken = (userId: string) => {
-  return jwt.sign({ _id: userId }, JWT_SECRET!, {
+const generateRefreshToken = (userId: string) => (
+  jwt.sign({ _id: userId }, JWT_SECRET!, {
     expiresIn: '7d',
-  });
-};
+  })
+);
 
 export const getCurrentUser = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const user = await User.findById(req.user?._id);
     if (!user) {
-      return res.status(HttpCodes.NOT_FOUND).json({ message: 'Пользователь не найден' });
+      res.status(HttpCodes.NOT_FOUND).json({ message: 'Пользователь не найден' });
+      return;
     }
 
     res.json({
@@ -43,10 +44,11 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(HttpCodes.BAD_REQUEST).json({
+      res.status(HttpCodes.BAD_REQUEST).json({
         success: false,
         message: 'Неверная почта или пароль',
       });
+      return;
     }
 
     const user = await User.findUserByCredentials(email, password);
@@ -75,10 +77,11 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'Неправильные почта или пароль') {
-      return res.status(HttpCodes.UNAUTHORIZED).json({
+      res.status(HttpCodes.UNAUTHORIZED).json({
         success: false,
         message: 'Неправильные почта или пароль',
       });
+      return;
     }
     next(error);
   }
@@ -90,7 +93,8 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
 
     const emailUser = await User.findOne({ email });
     if (emailUser) {
-      return res.status(HttpCodes.CONFLICT).json({ message: 'Такой email уже зарегистрирован' });
+      res.status(HttpCodes.CONFLICT).json({ message: 'Такой email уже зарегистрирован' });
+      return;
     }
 
     const hashPassword = await bcrypt.hash(password, 10);
@@ -134,13 +138,16 @@ export const logout = async (req: Request, res: Response, next: NextFunction) =>
   try {
     const { refreshToken } = req.cookies;
     if (!refreshToken) {
-      return res.status(HttpCodes.BAD_REQUEST).json({ message: 'Токен не найден' });
+      res.status(HttpCodes.BAD_REQUEST).json({ message: 'Токен не найден' });
+      return;
     }
 
     const payload = jwt.verify(refreshToken, JWT_SECRET!) as { _id: string };
     const user = await User.findById(payload._id);
+
     if (!user) {
-      return res.status(HttpCodes.NOT_FOUND).json({ message: 'Пользователь не найден' });
+      res.status(HttpCodes.NOT_FOUND).json({ message: 'Пользователь не найден' });
+      return;
     }
     await User.findByIdAndUpdate(user._id, {
       $pull: { tokens: { token: refreshToken } },
@@ -158,7 +165,8 @@ export const refreshAccessToken = async (req: Request, res: Response, next: Next
   try {
     const { refreshToken } = req.cookies;
     if (!refreshToken) {
-      return res.status(HttpCodes.UNAUTHORIZED).json({ message: 'Токен не найден' });
+      res.status(HttpCodes.UNAUTHORIZED).json({ message: 'Токен не найден' });
+      return;
     }
     const payload = jwt.verify(refreshToken, JWT_SECRET!) as { _id: string };
     const user = await User.findOne({
@@ -166,7 +174,8 @@ export const refreshAccessToken = async (req: Request, res: Response, next: Next
       'tokens.token': refreshToken,
     });
     if (!user) {
-      return res.status(HttpCodes.UNAUTHORIZED).json({ message: 'Токен недействителен' });
+      res.status(HttpCodes.UNAUTHORIZED).json({ message: 'Токен недействителен' });
+      return;
     }
 
     const newAccessToken = generateAccessToken(user._id.toString());

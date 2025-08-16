@@ -22,11 +22,12 @@ const errorHandler: ErrorRequestHandler = (
   if (isCelebrateError(err)) {
     const message = formatCelebrateError(err);
     const error = new BadRequestError(message);
-    return res.status(error.statusCode).send({ message: error.message });
+    res.status(error.statusCode).send({ message: error.message });
+    return next();
   }
   res.status(err.statusCode || HttpCodes.INTERNAL_SERVER_ERROR)
     .send({ message: err.message || 'На сервере произошла ошибка' });
-  next();
+  return next();
 };
 
 export default errorHandler;

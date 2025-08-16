@@ -1,35 +1,59 @@
 import { CronJob } from 'cron';
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
+import { logger } from '../middlewares/logger';
 
 const tempDir = path.join(process.cwd(), 'temp');
 
-const cleanTempFolder = (): void => {
-  const now = new Date().getTime();
+const cleanTempFolder = async (): Promise<void> => {
+  const now = Date.now();
   const oneHour = 60 * 60 * 1000; // 1 час в миллисекундах
 
-  if (!fs.existsSync(tempDir)) {
-    console.log('Папка temp не существует, создаём...');
-    fs.mkdirSync(tempDir, { recursive: true });
-    return;
-  }
+  try {
+    // Проверяем и создаем папку temp при необходимости
+    try {
+      await fs.access(tempDir);
+    } catch (accessError) {
+      logger.info('Папка temp не существует, создаём...');
+      await fs.mkdir(tempDir, { recursive: true });
+      return;
+    }
 
-  fs.readdir(tempDir, (err, files) => {
-    if (err) throw err;
+    // Читаем содержимое папки
+    const files = await fs.readdir(tempDir);
 
-    files.forEach((file) => {
-      const filePath = path.join(tempDir, file);
-      fs.stat(filePath, (err, stat) => {
-        if (err) return;
+    // Обрабатываем каждый файл
+    await Promise.all(
+      files.map(async (file) => {
+        const filePath = path.join(tempDir, file);
 
-        if (now - stat.mtime.getTime() > oneHour) {
-          fs.unlink(filePath, (err) => {
-            if (err) console.error(`Error deleting file ${filePath}:`, err);
+        try {
+          const stat = await fs.stat(filePath);
+
+          if (now - stat.mtime.getTime() > oneHour) {
+            try {
+              await fs.unlink(filePath);
+              logger.info(`Файл ${file} успешно удален`, { filePath });
+            } catch (unlinkError) {
+              logger.error('Ошибка удаления файла', {
+                filePath,
+                error: unlinkError instanceof Error ? unlinkError.message : String(unlinkError),
+              });
+            }
+          }
+        } catch (statError) {
+          logger.warn('Ошибка проверки файла', {
+            filePath,
+            error: statError instanceof Error ? statError.message : String(statError),
           });
         }
-      });
+      }),
+    );
+  } catch (error) {
+    logger.error('Критическая ошибка при очистке папки temp', {
+      error: error instanceof Error ? error.message : String(error),
     });
-  });
+  }
 };
 
 // Запускаем очистку каждый час

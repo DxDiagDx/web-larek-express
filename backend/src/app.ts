@@ -9,7 +9,7 @@ import productsRouter from './routes/products';
 import ordersRouter from './routes/orders';
 import uploadRouter from './routes/upload';
 import cleanTemp from './utils/cleanTemp';
-import { requestLogger, errorLogger } from './middlewares/logger';
+import { requestLogger, errorLogger, logger } from './middlewares/logger';
 import authRouter from './routes/auth';
 
 const { PORT = 3000, DB_ADDRESS = 'mongodb://127.0.0.1:27017/weblarek' } = process.env;
@@ -37,5 +37,5 @@ app.use(errors());
 app.use(errorHandler);
 
 app.listen(PORT, () => {
-  console.log(`listening on port ${PORT}`);
+  logger.info(`listening on port ${PORT}`);
 });
