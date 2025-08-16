@@ -1,10 +1,10 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { IImage } from '../models/product';
-import HttpCodes from '../errors/codes';
+import BadRequestError from '../errors/bad-request-error';
 
-const uploadFile = (req: Request, res: Response): void => {
+const uploadFile = (req: Request, res: Response, next: NextFunction): void => {
   if (!req.file) {
-    res.status(HttpCodes.BAD_REQUEST).json({ error: 'Файл не загружен' });
+    next(new BadRequestError('Файл не загружен'));
     return;
   }
 

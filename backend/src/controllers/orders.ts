@@ -11,7 +11,7 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
 
   try {
     const totalSum = await items.reduce(async (sum:number, item: string[]) => {
-      let summa = await sum;
+      let summa = sum;
       const product = await Product.findOne({ _id: item });
       if (product) {
         if (product.price === null) {

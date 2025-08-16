@@ -1,11 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
-import HttpCodes from '../errors/codes';
+import BadRequestError from '../errors/bad-request-error';
 
-const validateProduct = (req: Request, res: Response, next: NextFunction): void => {
+const validateProduct = (req: Request, _res: Response, next: NextFunction): void => {
   const { title } = req.body;
 
   if (!title) {
-    res.status(HttpCodes.BAD_REQUEST).json({ error: 'Необходимо указать Title' });
+    next(new BadRequestError('Необходимо указать Title'));
     return;
   }
 

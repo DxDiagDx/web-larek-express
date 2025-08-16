@@ -5,10 +5,12 @@ import { existsSync } from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import Product, { IProductRequestBody } from '../models/product';
-import DuplicateTitleError from '../errors/duplicate-title-error';
+import ConflictError from '../errors/conflict-error';
 import BadRequestError from '../errors/bad-request-error';
+import NotFoundError from '../errors/not-found-error';
 import HttpCodes from '../errors/codes';
 import { logger } from '../middlewares/logger';
+import InternalServerError from '../errors/internal-server-error';
 
 const moveFile = async (tempPath: string, originalName: string): Promise<string> => {
   const ext = path.extname(originalName);
@@ -19,13 +21,17 @@ const moveFile = async (tempPath: string, originalName: string): Promise<string>
   return `/images/${filename}`;
 };
 
-export const getProducts = (_req: Request, res: Response, next: NextFunction) => Product.find({})
-  .then((products) => res.send({
-    items: products, total: products.length,
-  }))
-  .catch((err) => {
+export const getProducts = async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const products = await Product.find({});
+    res.send({
+      items: products,
+      total: products.length,
+    });
+  } catch (err) {
     next(err);
-  });
+  }
+};
 
 export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -54,7 +60,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
     res.status(HttpCodes.CREATED).json({ product });
   } catch (err) {
     if (err instanceof Error && err.message.includes('E11000')) {
-      next(new DuplicateTitleError('Товар с таким названием уже существует'));
+      next(new ConflictError('Товар с таким названием уже существует'));
       return;
     }
     if (err instanceof MongooseError.ValidationError) {
@@ -68,6 +74,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 export const updateProduct = async (
   req: Request<{ productId: string }, {}, IProductRequestBody>,
   res: Response,
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const { productId } = req.params;
@@ -79,11 +86,8 @@ export const updateProduct = async (
       image,
     } = req.body;
 
-    const product = await Product.findById(productId);
-    if (!product) {
-      res.status(HttpCodes.NOT_FOUND).json({ error: 'Product not found' });
-      return;
-    }
+    const product = await Product.findById(productId)
+      .orFail(new NotFoundError('Товар не найден'));
 
     // Обработка обновления изображения
     if (image?.fileName) {
@@ -117,27 +121,24 @@ export const updateProduct = async (
     res.status(HttpCodes.OK).json(updatedProduct);
   } catch (err) {
     if (err instanceof MongooseError.ValidationError) {
-      res.status(HttpCodes.BAD_REQUEST).json({ error: err.message });
+      next(new BadRequestError(err.message));
     } else if (err instanceof Error && err.message.includes('E11000')) {
-      res.status(HttpCodes.CONFLICT).json({ error: 'Товар с таким названием уже существует' });
+      next(new ConflictError('Товар с таким названием уже существует'));
     } else {
-      res.status(HttpCodes.INTERNAL_SERVER_ERROR).json({
-        error: 'Внутренняя ошибка сервера',
-        message: err instanceof Error ? err.message : 'Неизвестная ошибка',
-      });
+      next(new InternalServerError('Внутренняя ошибка сервера'));
     }
   }
 };
 
-export const deleteProduct = async (req: Request, res: Response): Promise<void> => {
+export const deleteProduct = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { productId } = req.params;
-    const product = await Product.findByIdAndDelete(productId);
-
-    if (!product) {
-      res.status(HttpCodes.NOT_FOUND).json({ error: 'Товар не найден' });
-      return;
-    }
+    const product = await Product.findByIdAndDelete(productId)
+      .orFail(new NotFoundError('Товар не найден'));
 
     res.status(HttpCodes.OK).json({
       message: 'Товар успешно удален',
@@ -145,12 +146,9 @@ export const deleteProduct = async (req: Request, res: Response): Promise<void> 
     });
   } catch (error) {
     if (error instanceof MongooseError.CastError) {
-      res.status(HttpCodes.BAD_REQUEST).json({ error: 'Некорректный ID товара' });
+      next(new BadRequestError('Некорректный ID товара'));
     } else {
-      res.status(HttpCodes.INTERNAL_SERVER_ERROR).json({
-        error: 'Внутренняя ошибка сервера',
-        message: error instanceof Error ? error.message : 'Неизвестная ошибка',
-      });
+      next(new InternalServerError('Внутренняя ошибка сервера'));
     }
   }
 };

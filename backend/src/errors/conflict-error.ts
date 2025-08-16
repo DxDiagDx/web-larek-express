@@ -5,7 +5,7 @@ class ConflictError extends Error {
 
   constructor(message: string) {
     super(message);
-    this.statusCode = HttpCodes.INTERNAL_SERVER_ERROR;
+    this.statusCode = HttpCodes.CONFLICT;
   }
 }
 

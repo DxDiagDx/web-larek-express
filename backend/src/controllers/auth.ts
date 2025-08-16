@@ -4,6 +4,10 @@ import bcrypt from 'bcryptjs';
 import User from '../models/user';
 import { AuthRequest } from '../middlewares/auth';
 import HttpCodes from '../errors/codes';
+import NotFoundError from '../errors/not-found-error';
+import BadRequestError from '../errors/bad-request-error';
+import UnauthorizedError from '../errors/unauthorized-error';
+import ConflictError from '../errors/conflict-error';
 
 const { JWT_SECRET } = process.env;
 
@@ -21,11 +25,8 @@ const generateRefreshToken = (userId: string) => (
 
 export const getCurrentUser = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const user = await User.findById(req.user?._id);
-    if (!user) {
-      res.status(HttpCodes.NOT_FOUND).json({ message: 'Пользователь не найден' });
-      return;
-    }
+    const user = await User.findById(req.user?._id)
+      .orFail(new NotFoundError('Пользователь не найден'));
 
     res.json({
       user: {
@@ -44,10 +45,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     const { email, password } = req.body;
 
     if (!email || !password) {
-      res.status(HttpCodes.BAD_REQUEST).json({
-        success: false,
-        message: 'Неверная почта или пароль',
-      });
+      next(new BadRequestError('Неверная почта или пароль'));
       return;
     }
 
@@ -77,10 +75,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'Неправильные почта или пароль') {
-      res.status(HttpCodes.UNAUTHORIZED).json({
-        success: false,
-        message: 'Неправильные почта или пароль',
-      });
+      next(new UnauthorizedError('Неправильные почта или пароль'));
       return;
     }
     next(error);
@@ -93,7 +88,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
 
     const emailUser = await User.findOne({ email });
     if (emailUser) {
-      res.status(HttpCodes.CONFLICT).json({ message: 'Такой email уже зарегистрирован' });
+      next(new ConflictError('Такой email уже зарегистрирован'));
       return;
     }
 
@@ -103,15 +98,11 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
     const accessToken = generateAccessToken(user._id.toString());
     const refreshToken = generateRefreshToken(user._id.toString());
 
-    const updatedUser = await User.findByIdAndUpdate(
+    await User.findByIdAndUpdate(
       user._id,
       { $push: { tokens: { token: refreshToken } } },
       { new: true },
-    );
-
-    if (!updatedUser) {
-      throw new Error('Не удалось обновить токен пользователя');
-    }
+    ).orFail(new Error('Не удалось обновить токен пользователя'));
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
@@ -138,23 +129,20 @@ export const logout = async (req: Request, res: Response, next: NextFunction) =>
   try {
     const { refreshToken } = req.cookies;
     if (!refreshToken) {
-      res.status(HttpCodes.BAD_REQUEST).json({ message: 'Токен не найден' });
+      next(new BadRequestError('Токен не найден'));
       return;
     }
 
     const payload = jwt.verify(refreshToken, JWT_SECRET!) as { _id: string };
-    const user = await User.findById(payload._id);
+    const user = await User.findById(payload._id)
+      .orFail(new NotFoundError('Пользователь не найден'));
 
-    if (!user) {
-      res.status(HttpCodes.NOT_FOUND).json({ message: 'Пользователь не найден' });
-      return;
-    }
     await User.findByIdAndUpdate(user._id, {
       $pull: { tokens: { token: refreshToken } },
-    });
-    res.clearCookie('refreshToken', {
-      path: '/',
-    });
+    }).orFail(new Error('Не удалось обновить токен пользователя'));
+
+    res.clearCookie('refreshToken', { path: '/' });
+
     res.json({ success: true });
   } catch (error) {
     next(error);
@@ -165,25 +153,23 @@ export const refreshAccessToken = async (req: Request, res: Response, next: Next
   try {
     const { refreshToken } = req.cookies;
     if (!refreshToken) {
-      res.status(HttpCodes.UNAUTHORIZED).json({ message: 'Токен не найден' });
+      next(new UnauthorizedError('Токен не найден'));
       return;
     }
     const payload = jwt.verify(refreshToken, JWT_SECRET!) as { _id: string };
     const user = await User.findOne({
       _id: payload._id,
       'tokens.token': refreshToken,
-    });
-    if (!user) {
-      res.status(HttpCodes.UNAUTHORIZED).json({ message: 'Токен недействителен' });
-      return;
-    }
+    }).orFail(new UnauthorizedError('Токен недействителен'));
 
     const newAccessToken = generateAccessToken(user._id.toString());
     const newRefreshToken = generateRefreshToken(user._id.toString());
+
     await User.findByIdAndUpdate(payload._id, {
       $pull: { tokens: { token: refreshToken } },
       $push: { tokens: { token: newRefreshToken } },
-    });
+    }, { new: true }).orFail(new Error('Не удалось обновить токены'));
+
     res.cookie('refreshToken', newRefreshToken, {
       httpOnly: true,
       sameSite: 'lax',
@@ -191,6 +177,7 @@ export const refreshAccessToken = async (req: Request, res: Response, next: Next
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/',
     });
+
     res.json({
       user: {
         email: user.email,

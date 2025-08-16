@@ -13,6 +13,9 @@
   "author": "< Укажите здесь автора работы >",
   "license": "ISC",
   "devDependencies": {
+    "@types/cron": "^2.0.1",
+    "@types/multer": "^2.0.0",
+    "@types/uuid": "^10.0.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.23",
@@ -25,14 +28,10 @@
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-plugin-import": "^2.29.1",
     "ts-node": "^10.9.2",
-    "ts-node-dev": "^2.0.0",
     "typescript": "^5.4.5"
   },
   "dependencies": {
     "@faker-js/faker": "^9.9.0",
-    "@types/cron": "^2.0.1",
-    "@types/multer": "^2.0.0",
-    "@types/uuid": "^10.0.0",
     "bcryptjs": "^3.0.2",
     "celebrate": "^15.0.3",
     "cors": "^2.8.5",

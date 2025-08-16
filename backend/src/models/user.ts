@@ -1,6 +1,7 @@
 import mongoose, { Document, Types } from 'mongoose';
 import validator from 'validator';
 import bcrypt from 'bcryptjs';
+import UnauthorizedError from '../errors/unauthorized-error';
 
 export interface IUser extends Document {
   _id: Types.ObjectId;
@@ -44,25 +45,26 @@ const userSchema = new mongoose.Schema<IUser>({
   }],
 });
 
-userSchema.static('findUserByCredentials', function findUserByCredentials(email: string, password: string) {
-  return this.findOne({ email })
-    .select('+password')
-    .then((user: IUser | null) => {
-      if (!user) {
-        return Promise.reject(new Error('Неправильные почта или пароль'));
-      }
+userSchema.static('findUserByCredentials', async function findUserByCredentials(
+  email: string,
+  password: string,
+): Promise<IUser> {
+  const user = await this.findOne({ email }).select('+password');
 
-      if (!user.password) {
-        throw new Error('У пользователя нет пароля');
-      }
-      return bcrypt.compare(password, user.password).then((matched) => {
-        if (!matched) {
-          return Promise.reject(new Error('Неправильные почта или пароль'));
-        }
+  if (!user) {
+    throw new UnauthorizedError('Неправильные почта или пароль');
+  }
 
-        return user;
-      });
-    });
+  if (!user.password) {
+    throw new UnauthorizedError('У пользователя нет пароля');
+  }
+
+  const isPasswordMatch = await bcrypt.compare(password, user.password);
+  if (!isPasswordMatch) {
+    throw new UnauthorizedError('Неправильные почта или пароль');
+  }
+
+  return user;
 });
 
 export default mongoose.model<IUser, UserModel>('user', userSchema);

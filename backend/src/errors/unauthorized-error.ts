@@ -1,12 +1,12 @@
 import HttpCodes from './codes';
 
-class DuplicateTitleError extends Error {
+class UnauthorizedError extends Error {
   public statusCode: number;
 
   constructor(message: string) {
     super(message);
-    this.statusCode = HttpCodes.CONFLICT;
+    this.statusCode = HttpCodes.UNAUTHORIZED;
   }
 }
 
-export default DuplicateTitleError;
+export default UnauthorizedError;
